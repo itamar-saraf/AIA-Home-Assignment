@@ -3,12 +3,9 @@ import random
 from pathlib import Path
 
 from dataset import Dataset
+from eval import languageDetection
+from solver import Solver
 from utils import seed
-
-
-def languageDetection(filePath: Path):
-    return 'pred'
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Languages Detection.')
@@ -26,9 +23,15 @@ if __name__ == '__main__':
         dataset = Dataset(path=args.data_path, stats=args.data_statistics)
         dataset.load_data()
         dataset.split_data()
+        dataset.preprocess()
 
-        # TODO implement the classifier
+        solver = Solver(dataset)
+        solver.find_best_classifier()
+        solver.train_classifier()
+        solver.eval_on_test()
+        solver.save_model()
 
     elif args.action == 'eval':
         file_to_predict = Path(args.file_to_predict)
-        languageDetection(file_to_predict)
+        pred = languageDetection(file_to_predict)[-1]
+        print(pred)
