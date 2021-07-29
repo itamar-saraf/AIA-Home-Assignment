@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.feature_extraction.text import CountVectorizer
 
 
 class Dataset:
@@ -11,13 +13,15 @@ class Dataset:
     Including train, validation and test.
     """
 
-    def __init__(self, path: str, stats: bool = True):
+    def __init__(self, path: str, stats: bool = True, ngram: int = 3, max_features: int = 500):
         self.data_path = Path(path)
         self.data = pd.DataFrame(columns=['tweet', 'language'])
         self.train = None
-        self.val = None
         self.test = None
         self.stats = stats
+        self.le = LabelEncoder()
+        self.cv = CountVectorizer(strip_accents='ascii', analyzer='char', ngram_range=(ngram, ngram),
+                                  max_features=max_features)
 
     def load_data(self):
         """
@@ -34,14 +38,44 @@ class Dataset:
         if self.stats:
             print('You can see if the dataset is balanced')
             print(self.data.language.value_counts())
+        self._label_encoding()
 
     def split_data(self):
         """
-        This function splitting the dataset using sk-learn to 75% train, 25% test.
-        from the train, it's taking another 15% to validation set
+        This function splitting the dataset using sk-learn to 70% train, 30% test.
         """
-        self.train, self.test = train_test_split(self.data, test_size=0.25, shuffle=True)
-        self.train, self.val = train_test_split(self.train, test_size=0.15, shuffle=True)
+        self.train, self.test = train_test_split(self.data, test_size=0.3, shuffle=True)
+
+    def preprocess(self):
+        """
+        Transforms the data to ngrams,
+        also build vocabulary.
+        """
+        self._char_ngrams()
+
+    def _label_encoding(self):
+        """
+        creates code labels from languages labeling
+        """
+        y = self.data["language"]
+        self.data['label_code'] = self.le.fit_transform(y)
+
+    def _char_ngrams(self):
+        """
+        Transforms all tweets to ngram, saving it in the dataset
+        """
+        x = self.train['tweet']
+        x = self.cv.fit_transform(x).toarray()
+        self.train.insert(3, 'ngrams', list(x), True)
+
+    @staticmethod
+    def _extract_label(language: Path) -> str:
+        """
+        This functions Extract the label from the path to language folder
+        :param language: folder that contains all the tweets of specified language
+        :return: label
+        """
+        return language.name.split('_')[-1]
 
     @staticmethod
     def _remove_numbers(tweet: str) -> str:
@@ -52,12 +86,3 @@ class Dataset:
         :return: Tweet without the digits
         """
         return re.sub(r'[0-9]+', '', tweet)
-
-    @staticmethod
-    def _extract_label(language: Path) -> str:
-        """
-        This functions Extract the label from the path to language folder
-        :param language: folder that contains all the tweets of specified language
-        :return: label
-        """
-        return language.name.split('_')[-1]
